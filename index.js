@@ -1,6 +1,18 @@
-require('dotenv').config()
-const Discord = require('discord.js');
-const client = new Discord.Client();
+// Require the necessary discord.js classes
+const { Client, Events, GatewayIntentBits } = require('discord.js');
+require('dotenv').config();
+
+const client = new Client({
+	intents: [
+    GatewayIntentBits.Guilds, 
+    GatewayIntentBits.GuildMembers, 
+    GatewayIntentBits.MessageContent, 
+    GatewayIntentBits.GuildMessageReactions,
+    GatewayIntentBits.DirectMessages,
+    GatewayIntentBits.DirectMessageReactions,
+	],
+	partials: ['REACTION', 'MESSAGE', 'CHANNEL'], // Opt into partials
+});
 
 const dinosaurs = require('./dinosaurs.json');
 const endings = require('./endings.json');
@@ -19,8 +31,9 @@ const generateNickname = () => {
   return nickname;
 };
 
-const sendConfirmationMessage = async (member, nickname) => {
-  const message = await member.send(`Welcome! Your generated nickname is ${nickname}. Do you accept this nickname?`);
+const sendConfirmationMessage = async (guild, member, nickname) => {
+  const channel = guild.channels.cache.get(process.env.CHANNEL_ID); // replace with your channel ID
+  const message = await channel.send(`${member.user.tag}'s generated nickname is ${nickname}. Do you accept this nickname?`);
   // React with emojis
   await message.react('✅');
   await message.react('❌');
@@ -30,10 +43,10 @@ const sendConfirmationMessage = async (member, nickname) => {
 
 client.on('guildMemberAdd', member => {
   const nickname = generateNickname();
-  sendConfirmationMessage(member, nickname);
+  sendConfirmationMessage(member.guild, member, nickname);
 });
 
-client.on('messageReactionAdd', async (reaction, user) => {
+client.on(Events.MessageReactionAdd, async (reaction, user) => {
   // Ignore bot's own reactions
   if(user.bot) return;
   // Check if this is a confirmation message
@@ -43,9 +56,17 @@ client.on('messageReactionAdd', async (reaction, user) => {
     if(reaction.emoji.name === '✅') {
       // The member accepted the nickname
       const member = reaction.message.guild.members.cache.get(memberId);
-      member.setNickname(nickname);
-      user.send(`You have accepted the nickname ${nickname}`);
-      confirmationMessages.delete(reaction.message.id);
+      try {
+        await member.setNickname(nickname);
+        user.send(`You have accepted the nickname ${nickname}`);
+        confirmationChannel.send(`${member.user.tag} accepted the nickname ${nickname}`);
+        confirmationMessages.delete(reaction.message.id);
+      } catch (error) {
+        // Catch the error if the bot can't manage the member's nickname
+        user.send(`You accepted the nickname ${nickname}, but I couldn't change it because your role is higher than mine in the server. You can manually change your nickname to ${nickname}.`);
+        confirmationChannel.send(`${member.user.tag} accepted the nickname ${nickname}, but I couldn't change it because their role is higher than mine.`);
+        confirmationMessages.delete(reaction.message.id);
+      }
     } else if(reaction.emoji.name === '❌') {
       // The member rejected the nickname, generate a new one
       const newNickname = generateNickname();
@@ -53,6 +74,24 @@ client.on('messageReactionAdd', async (reaction, user) => {
       confirmationMessages.delete(reaction.message.id);
     }
   }
+});
+
+
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isCommand()) return;
+  const { commandName } = interaction;
+  if (commandName === 'dinoname') {
+    const nickname = generateNickname();
+    const member = interaction.guild.members.cache.get(interaction.user.id);
+    await sendConfirmationMessage(interaction.guild, member, nickname);
+    await interaction.reply(`Your proposed new nickname is ${nickname}. Please confirm in the dedicated channel.`);
+  }
+});
+
+// When the client is ready, run this code (only once)
+// We use 'c' for the event parameter to keep it separate from the already defined 'client'
+client.once(Events.ClientReady, c => {
+	console.log(`Ready! Logged in as ${c.user.tag}`);
 });
 
 client.login(process.env.BOT_TOKEN);
