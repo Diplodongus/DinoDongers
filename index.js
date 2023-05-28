@@ -41,6 +41,16 @@ const sendConfirmationMessage = async (guild, member, nickname) => {
   confirmationMessages.set(message.id, { memberId: member.id, nickname });
 }
 
+const sendConfirmedMessage = async (guild, member, nickname) => {
+  const channel = guild.channels.cache.get(process.env.CHANNEL_ID); // replace with your channel ID
+  const message = await channel.send(`${member.user.tag}'s nickname is now ${nickname}.`);
+}
+
+const sendFailedMessage = async (guild, member, nickname) => {
+  const channel = guild.channels.cache.get(process.env.CHANNEL_ID); // replace with your channel ID
+  const message = await channel.send(`${member.user.tag}'s nickname was supposed to be ${nickname}, but I couldn't change it because their role is higher than mine.`);
+}
+
 client.on('guildMemberAdd', member => {
   const nickname = generateNickname();
   sendConfirmationMessage(member.guild, member, nickname);
@@ -59,18 +69,17 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
       try {
         await member.setNickname(nickname);
         user.send(`You have accepted the nickname ${nickname}`);
-        confirmationChannel.send(`${member.user.tag} accepted the nickname ${nickname}`);
-        confirmationMessages.delete(reaction.message.id);
+        sendConfirmedMessage(reaction.message.guild, member, nickname);
       } catch (error) {
         // Catch the error if the bot can't manage the member's nickname
         user.send(`You accepted the nickname ${nickname}, but I couldn't change it because your role is higher than mine in the server. You can manually change your nickname to ${nickname}.`);
-        confirmationChannel.send(`${member.user.tag} accepted the nickname ${nickname}, but I couldn't change it because their role is higher than mine.`);
-        confirmationMessages.delete(reaction.message.id);
+        sendFailedMessage(reaction.message.guild, member, nickname);
       }
     } else if(reaction.emoji.name === '❌') {
+      const member = reaction.message.guild.members.cache.get(memberId);
       // The member rejected the nickname, generate a new one
       const newNickname = generateNickname();
-      sendConfirmationMessage(reaction.message.guild.members.cache.get(memberId), newNickname);
+      sendConfirmationMessage(member.guild, member, newNickname);
       confirmationMessages.delete(reaction.message.id);
     }
   }
