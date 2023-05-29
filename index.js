@@ -97,6 +97,18 @@ client.on('interactionCreate', async interaction => {
   }
 });
 
+client.on('ready', async () => {
+  const data = {
+      name: 'dinoname',
+      description: 'Generate a new Dino Donger nickname!',
+  };
+
+  // The id of your guild (server)
+  const guildId = process.env.GUILD_ID;
+
+  const command = await client.guilds.cache.get(guildId)?.commands.create(data);
+});
+
 // When the client is ready, run this code (only once)
 // We use 'c' for the event parameter to keep it separate from the already defined 'client'
 client.once(Events.ClientReady, c => {
