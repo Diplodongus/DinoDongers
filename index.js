@@ -80,8 +80,10 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
       // The member rejected the nickname, generate a new one
       const newNickname = generateNickname();
       sendConfirmationMessage(member.guild, member, newNickname);
-      confirmationMessages.delete(reaction.message.id);
     }
+    // Delete the message after the reaction
+    reaction.message.delete().catch(console.error);
+    confirmationMessages.delete(reaction.message.id);
   }
 });
 
