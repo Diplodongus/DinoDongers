@@ -22,18 +22,20 @@ const confirmationMessages = new Map(); // Stores confirmation messages to users
 
 const generateNickname = () => {
   let nickname = '';
+  let originalDinosaur = '';
   do {
     const dinosaur = dinosaurs[Math.floor(Math.random() * dinosaurs.length)];
     const endingKey = Object.keys(endings).find(key => dinosaur.endsWith(key));
     const ending = endings[endingKey] || 'dongus';
     nickname = dinosaur.replace(endingKey, ending);
+    originalDinosaur = dinosaur; // save the original dinosaur name
   } while (usedNicknames.has(nickname))
-  return nickname;
+  return {nickname, originalDinosaur};
 };
 
-const sendConfirmationMessage = async (guild, member, nickname) => {
+const sendConfirmationMessage = async (guild, member, nickname, originalDinosaur) => {
   const channel = guild.channels.cache.get(process.env.CHANNEL_ID); // replace with your channel ID
-  const message = await channel.send(`${member.user.tag}'s generated nickname is ${nickname}. Do you accept this nickname?`);
+  const message = await channel.send(`${member.user.tag}'s generated nickname is ${nickname} (original: ${originalDinosaur}). Do you accept this nickname?`);
   // React with emojis
   await message.react('✅');
   await message.react('❌');
@@ -52,8 +54,8 @@ const sendFailedMessage = async (guild, member, nickname) => {
 }
 
 client.on('guildMemberAdd', member => {
-  const nickname = generateNickname();
-  sendConfirmationMessage(member.guild, member, nickname);
+  const generated = generateNickname();
+  sendConfirmationMessage(member.guild, member, generated.nickname, generated.originalDinosaur);
 });
 
 client.on(Events.MessageReactionAdd, async (reaction, user) => {
@@ -78,8 +80,8 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
     } else if(reaction.emoji.name === '❌') {
       const member = reaction.message.guild.members.cache.get(memberId);
       // The member rejected the nickname, generate a new one
-      const newNickname = generateNickname();
-      sendConfirmationMessage(member.guild, member, newNickname);
+      const generatedNew = generateNickname();
+      await sendConfirmationMessage(member.guild, member, generatedNew.nickname, generatedNew.originalDinosaur);
     }
     // Delete the message after the reaction
     reaction.message.delete().catch(console.error);
@@ -87,15 +89,14 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
   }
 });
 
-
 client.on('interactionCreate', async interaction => {
   if (!interaction.isCommand()) return;
   const { commandName } = interaction;
   if (commandName === 'dinoname') {
-    const nickname = generateNickname();
+    const generated = generateNickname();
     const member = interaction.guild.members.cache.get(interaction.user.id);
-    await sendConfirmationMessage(interaction.guild, member, nickname);
-    await interaction.reply(`Your proposed new nickname is ${nickname}. Please confirm in the dedicated channel.`);
+    await sendConfirmationMessage(interaction.guild, member, generated.nickname, generated.originalDinosaur);
+    await interaction.reply(`Your proposed new nickname is ${generated.nickname}. Please confirm in the dedicated channel.`);
   }
 });
 
